@@ -72,6 +72,7 @@ Both training scripts cache per fold and resume if interrupted.
 | `sleepstaging/evaluate.py` | Shared folds, metrics, sequence windowing. |
 | `tests/test_shapes.py` | Validates the CNN's tensor arithmetic (runs without PyTorch). |
 | `tests/test_lstm_plumbing.py` | Validates fold, index and scaling bookkeeping against the real cache. |
+| `make_figures.py` | Regenerates every figure in `figures/` from the saved posteriors. |
 | `docs/DEVELOPMENT_REPORT.md` | Development report: method, results, negative results, engineering. |
 | `docs/MODEL.md` | Full design rationale, every result, every rejected alternative. |
 | `docs/DATASET_AUDIT.md` | Data-integrity audit and the traps found in the dataset. |

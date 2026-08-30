@@ -349,3 +349,73 @@ choosing the transition weight per fold on training recordings only:
 
 saved -> results/stacked.npz (ensemble + Viterbi)
 ```
+```
+python submission\train_lstm.py --folds 5 --save-proba
+
+93,937 epochs x 426 features | 99 recordings | 86 patients | device=cuda
+run fingerprint: d85977e90962e9ba
+  fold 1/5: 79 train / 20 test recordings, 18,955 test epochs   fold accuracy 0.7271  (5s)
+  fold 2/5: 79 train / 20 test recordings, 18,919 test epochs   fold accuracy 0.7244  (3s)
+  fold 3/5: 80 train / 19 test recordings, 18,451 test epochs   fold accuracy 0.7591  (3s)
+  fold 4/5: 79 train / 20 test recordings, 18,834 test epochs   fold accuracy 0.7363  (3s)
+  fold 5/5: 79 train / 20 test recordings, 18,778 test epochs   fold accuracy 0.7400  (3s)
+  (30 epochs per fold, training loss 0.95 -> 0.21; full per-epoch traces omitted)
+
+=== BiLSTM over features -- 5 of 5 folds, grouped by patient ===
+  accuracy   0.7373
+  macro F1   0.6863
+  Cohen kappa 0.6371
+
+  stage      prec  recall      F1  support
+  Wake      0.833   0.774   0.802   25,921
+  N1        0.332   0.423   0.372    9,360
+  N2        0.807   0.790   0.798   39,198
+  N3        0.706   0.726   0.716    8,220
+  REM       0.748   0.737   0.743   11,238
+
+  confusion (row = truth, %)
+               Wake      N1      N2      N3     REM
+  Wake       77.4    15.9     4.6     0.1     1.9
+  N1         26.1    42.3    24.9     0.4     6.2
+  N2          2.7     7.8    79.0     6.1     4.3
+  N3          0.4     0.8    25.9    72.6     0.3
+  REM         4.3     6.2    15.6     0.1    73.7
+```
+
+```
+python submission\stack.py     (with all three models present)
+
+                                              accuracy  macro F1    kappa
+  gradient boosting                             0.7712    0.7070   0.6768
+  gradient boosting + Viterbi                   0.7741    0.7058   0.6795
+  CNN + BiGRU                                   0.7219    0.6602   0.6144
+  CNN + BiGRU + Viterbi                         0.7233    0.6593   0.6153
+  BiLSTM (features)                             0.7373    0.6863   0.6371
+  BiLSTM (features) + Viterbi                   0.7383    0.6861   0.6380
+  ensemble (gradient + cnn)                     0.7794    0.7137   0.6885
+  ensemble (gradient + cnn) + Viterbi           0.7805    0.7125   0.6893
+  ensemble (gradient + bilstm)                  0.7698    0.7123   0.6778
+  ensemble (gradient + bilstm) + Viterbi        0.7698    0.7123   0.6778
+  ensemble (gradient + cnn + bilstm)            0.7794    0.7210   0.6902
+  ensemble (gradient + cnn + bilstm) + Viterbi  0.7794    0.7210   0.6902
+
+=== best variant: ensemble (gradient + cnn + bilstm) ===
+  accuracy   0.7794
+  macro F1   0.7210
+  Cohen kappa 0.6902
+
+  stage      prec  recall      F1  support
+  Wake      0.841   0.842   0.841   25,921
+  N1        0.408   0.390   0.399    9,360
+  N2        0.813   0.849   0.831   39,198
+  N3        0.749   0.740   0.744    8,220
+  REM       0.840   0.745   0.789   11,238
+
+  confusion (row = truth, %)
+               Wake      N1      N2      N3     REM
+  Wake       84.2    10.5     4.3     0.1     0.9
+  N1         27.8    39.0    28.4     0.4     4.4
+  N2          2.7     5.0    84.9     5.0     2.3
+  N3          0.4     0.3    25.3    74.0     0.2
+  REM         4.0     5.2    16.2     0.2    74.5
+```
