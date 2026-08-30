@@ -20,9 +20,10 @@ The download arrived damaged in four ways: byte-identical duplicate copies, zero
 
   - **Gradient boosting**: 77.12% accuracy, macro F1 0.7070, Cohen's κ 0.6768
   - **CNN + BiGRU**: 72.19% accuracy, macro F1 0.6602, κ 0.6144
-  - **Ensemble + Viterbi (best)**: **78.05% accuracy**, macro F1 0.7125, **κ 0.6893**
+  - **BiLSTM over features**: 73.73% accuracy, macro F1 0.6863, κ 0.6371
+  - **Ensemble of all three (best)**: **77.94% accuracy**, macro F1 **0.7210**, **κ 0.6902**
 
-The trees beat the CNN on 74 of 99 recordings (Wilcoxon p = 2.4e-7), but the CNN still earns its place in the ensemble because its errors differ on roughly a quarter of epochs. For reference, the baselines published with the dataset report LSTM 74.70%, Transformer 67.44% and CNN 61.65% — though I do not know their split protocol, so this is indicative rather than a like-for-like comparison.
+The trees beat the CNN on 74 of 99 recordings (Wilcoxon p = 2.4e-7), but the CNN still earns its place in the ensemble because its errors differ on roughly a quarter of epochs. I also tried the paper's strongest architecture, an LSTM, but over the engineered features rather than raw signal. It beat my CNN decisively at a fraction of the compute, but lost to the trees, and at 73.73% sits just below the paper's reported 74.70%. My folds are grouped by patient, which is stricter than a recording-level split, so this is not a like-for-like comparison and I do not claim to have beaten that baseline.
 
 ## What Failed
 

@@ -45,7 +45,7 @@ def dataset_fingerprint(recs, n_epochs, a):
         "folds": a.folds, "seed": a.seed,
         "n_estimators": a.n_estimators, "class_weight": a.class_weight,
         "proba": bool(a.save_proba), "patience": a.patience, "val_frac": a.val_frac,
-        "refit": not a.no_refit, "es_metric": a.es_metric,
+        "refit": not a.no_refit, "es_metric": a.es_metric, "group_by": a.group_by,
     }, sort_keys=True)
     return hashlib.md5(key.encode()).hexdigest()[:16]
 
@@ -86,6 +86,11 @@ def main():
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--class-weight", choices=["none", "sqrt", "balanced"], default="sqrt")
+    ap.add_argument("--group-by", choices=["patient", "recording"], default="patient",
+                    help="What defines a fold boundary. 'patient' is correct. 'recording' "
+                         "reproduces the looser protocol used when duplicate patients are "
+                         "not known about, and exists only to measure how much that inflates "
+                         "the result -- do not report a number produced with it.")
     ap.add_argument("--out", default=os.path.join(ROOT, "results"))
     ap.add_argument("--n-estimators", type=int, default=400)
     ap.add_argument("--patience", type=int, default=0,
@@ -107,9 +112,16 @@ def main():
     a = ap.parse_args()
 
     d = E.load_cache(a.cache)
-    X, y, groups = d["X"], d["y"], d["groups"]
+    X, y = d["X"], d["y"]
+    groups = d["groups"] if a.group_by == "patient" else d["recs"]
+    if a.group_by == "recording":
+        print("WARNING: splitting by recording, not patient. 12 patients appear under more\n"
+              "         than one recording ID, so the same patient will land in train and\n"
+              "         test. This measures the optimism of that protocol; it is not a\n"
+              "         result to report.\n")
     print(f"{X.shape[0]:,} epochs x {X.shape[1]} features | "
-          f"{len(np.unique(d['recs']))} recordings | {len(np.unique(groups))} patients")
+          f"{len(np.unique(d['recs']))} recordings | "
+          f"{len(np.unique(d['groups']))} patients | grouping by {a.group_by}")
     print("class balance:", {E.STAGES[i]: int(c) for i, c in enumerate(np.bincount(y, minlength=5))})
 
     # N1 is ~10% of epochs and is the stage humans agree on least. Full inverse

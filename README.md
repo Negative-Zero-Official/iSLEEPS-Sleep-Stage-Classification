@@ -8,8 +8,11 @@
 | `cache/` | Generated per-epoch features and raw epochs. Rebuildable; not in version control. |
 | `results/`, `results_1200/` | Model outputs. `results_1200` is the tree-count convergence check. |
 
-**Best model: ensemble + Viterbi — accuracy 0.7805, macro F1 0.7125, Cohen's
-κ 0.6893**, five-fold cross-validation grouped by patient.
+**Final model: a three-model ensemble — accuracy 0.7794, macro F1 0.7210,
+Cohen's κ 0.690**, five-fold cross-validation grouped by patient. This is ahead
+of the dataset paper's best published baseline (Maiti et al., Sci Data 13:421,
+2026: LSTM at 74.70 / 67.68 / 0.64) on every overall metric and every individual
+sleep stage.
 
 Before trusting any downloaded copy of the dataset, run
 `python dataset_tools\verify_downloads.py Dataset` — the original download

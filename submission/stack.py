@@ -146,6 +146,7 @@ def main():
 
     gb = load_side(a.results + "/gbdt_fold{k}.npz", True, lens, bounds, rec_folds, len(y))
     cn = load_side(a.results + "/cnn_fold{k}.npz", False, lens, bounds, rec_folds, len(y))
+    ls = load_side(a.results + "/lstm_fold{k}.npz", True, lens, bounds, rec_folds, len(y))
     if gb is None:
         raise SystemExit("no gradient-boosting posteriors -- re-run train_gbdt.py with --save-proba")
 
@@ -154,22 +155,39 @@ def main():
     for i, st in enumerate(E.STAGES):
         print(f"    {st:<6} stays {A_all[i, i]:.3f}")
 
-    print("\nchoosing the transition weight per fold on training recordings only:")
-    variants = [("gradient boosting", gb.argmax(1)),
-                ("gradient boosting + Viterbi", decode(gb, y, lens, bounds, rec_folds, a.alpha, verbose=True))]
+    members = [("gradient boosting", gb)]
     if cn is not None:
-        ens = 0.5 * gb + 0.5 * cn
-        variants += [("CNN + BiGRU", cn.argmax(1)),
-                     ("CNN + Viterbi", decode(cn, y, lens, bounds, rec_folds, a.alpha, verbose=True)),
-                     ("ensemble (equal weight)", ens.argmax(1)),
-                     ("ensemble + Viterbi", decode(ens, y, lens, bounds, rec_folds, a.alpha, verbose=True))]
-    else:
-        print("\n(no CNN posteriors yet -- re-run train_cnn.py with --save-proba for the ensemble rows)")
+        members.append(("CNN + BiGRU", cn))
+    if ls is not None:
+        members.append(("BiLSTM (features)", ls))
+    missing = [n for n, p in [("CNN", cn), ("LSTM", ls)] if p is None]
+    if missing:
+        print(f"\n(no posteriors for: {', '.join(missing)} -- "
+              f"re-run the corresponding script with --save-proba to include it)")
+
+    print("\nchoosing the transition weight per fold on training recordings only:")
+    variants = []
+    for name, P in members:
+        variants.append((name, P.argmax(1)))
+        variants.append((name + " + Viterbi", decode(P, y, lens, bounds, rec_folds, a.alpha)))
+
+    # Equal-weight ensembles. Averaging posteriors needs no tuning and cannot
+    # overfit a held-out set, which matters at this cohort size.
+    if len(members) >= 2:
+        for combo in ([members] if len(members) == 2 else
+                      [[members[0], m] for m in members[1:]] + [members]):
+            names = [n for n, _ in combo]
+            P = sum(p for _, p in combo) / len(combo)
+            tag = "ensemble (" + " + ".join(
+                n.split()[0].lower() for n in names) + ")"
+            variants.append((tag, P.argmax(1)))
+            variants.append((tag + " + Viterbi",
+                             decode(P, y, lens, bounds, rec_folds, a.alpha)))
 
     from sklearn.metrics import cohen_kappa_score, f1_score
-    print(f"\n{'':<32}{'accuracy':>10}{'macro F1':>10}{'kappa':>9}")
+    print(f"\n{'':<44}{'accuracy':>10}{'macro F1':>10}{'kappa':>9}")
     for name, p in variants:
-        print(f"  {name:<30}{(p==y).mean():>10.4f}{f1_score(y,p,average='macro'):>10.4f}"
+        print(f"  {name:<42}{(p==y).mean():>10.4f}{f1_score(y,p,average='macro'):>10.4f}"
               f"{cohen_kappa_score(y,p):>9.4f}")
 
     best = max(variants, key=lambda kv: cohen_kappa_score(y, kv[1]))

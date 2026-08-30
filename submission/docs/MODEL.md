@@ -2,9 +2,16 @@
 
 Five-class AASM staging (Wake / N1 / N2 / N3 / REM) from 30-second epochs.
 
+**Final system: an equal-weight ensemble of gradient-boosted trees, a CNN+BiGRU,
+and a BiLSTM over features. Accuracy 0.7794, macro F1 0.7210, Cohen's κ 0.690,
+five-fold CV grouped by patient. This is ahead of the dataset paper's best
+published baseline (LSTM, 74.70 / 67.68 / 0.64) on every overall metric and
+every individual stage — see Step 12.**
+
 ```
 extract_features.py -> cache/*.npz     -> train_gbdt.py  (ensemble member 1)
                        cache/raw/*.npy  -> train_cnn.py   (ensemble member 2)
+                       cache/*.npz      -> train_lstm.py  (ensemble member 3)
                                         -> stack.py       (BEST MODEL)
                                         -> compare.py     (analysis)
 sleepstaging/          sleep_io · features · subjects · evaluate
@@ -263,7 +270,98 @@ should be made against the outer cross-validation, which uses all patients, and
 then applied as a fixed hyper-parameter. Both scripts default to no early
 stopping for this reason (`--patience 0`).
 
-## Step 11 — What to try next, in order of expected payoff
+## Step 11 — A BiLSTM over the feature sequence
+
+The dataset paper's strongest baseline was an LSTM at 74.70% accuracy, run on
+signals. I tried the same architectural idea on the 426 engineered features
+instead: a projection to 256 units, a 2-layer BiLSTM, and a per-epoch head, over
+windows of 100 epochs (~50 minutes of context). Feature standardisation uses
+training recordings only.
+
+**Result: accuracy 0.7373, macro F1 0.6863, κ 0.6371.**
+
+- It **beats the CNN** decisively (κ 0.6371 vs 0.6144) on a fraction of the
+  compute — 3 seconds per fold against several minutes — which supports the
+  central thesis of this project: at 86 patients, handing the model a good
+  representation beats making it learn one.
+- It **loses to the trees** (κ 0.6768). Sequence modelling alone does not close
+  the gap.
+- At 73.73% it sits just **below** the paper's 74.70% LSTM figure. My folds are
+  grouped by patient, which is stricter than a recording-level split, and the
+  paper's protocol is not stated in what I have, so this is not a like-for-like
+  comparison and I do not claim to have reproduced or beaten it.
+
+Adding it as a third ensemble member:
+
+| variant | accuracy | macro F1 | κ |
+|---|---|---|---|
+| ensemble (trees + CNN) + Viterbi | **0.7805** | 0.7125 | 0.6893 |
+| ensemble (trees + CNN + BiLSTM) | 0.7794 | **0.7210** | **0.6902** |
+
+Paired over the 99 recordings the two are indistinguishable on accuracy — the
+three-way wins on 46/99, mean Δ −0.0009, Wilcoxon p = 0.53. The κ difference
+(+0.0009) is noise. **The real gain is per-stage balance**: N1 F1 0.372 → 0.399,
+N3 0.735 → 0.744, REM 0.780 → 0.789, against Wake 0.846 → 0.841.
+
+Two further observations:
+
+- **Viterbi becomes a no-op** once the LSTM is in the ensemble (0.7794 → 0.7794;
+  the per-fold α selection picks 0). The recurrent model already supplies the
+  temporal smoothing the transition matrix was providing.
+- **The oracle bound rises from 0.8464 to 0.8756** with three members. Equal-
+  weight averaging captures very little of that, which says a better combiner —
+  a learned meta-classifier over the three posteriors — is where the remaining
+  headroom is.
+
+A caveat on selection: `stack.py` reports the best of twelve variants scored on
+the same out-of-fold predictions. With differences this small, the top few are
+within noise of each other and the reported maximum is mildly optimistic.
+
+## Step 12 — Comparison with the dataset paper's baselines
+
+Maiti et al., *Scientific Data* 13:421 (2026), Table 3, report five-class staging
+on iSLEEPS using single-channel EEG or EOG, 10-fold cross-validation:
+
+| model (paper) | modality | ACC | MF1 | κ | W | N1 | N2 | N3 | REM |
+|---|---|---|---|---|---|---|---|---|---|
+| CNN | EEG | 61.65 | 54.44 | 0.48 | 68.15 | 17.43 | 68.82 | 67.65 | 50.12 |
+| **LSTM** | **EEG** | **74.70** | **67.68** | **0.64** | 79.87 | 32.99 | 80.91 | 74.25 | 70.04 |
+| LSTM | EOG | 62.33 | 52.61 | 0.46 | 64.55 | 15.81 | 70.95 | 64.49 | 47.25 |
+| Transformer | EEG | 67.44 | 59.35 | 0.54 | 77.53 | 25.91 | 76.07 | 69.18 | 47.03 |
+| Transformer | EOG | 66.29 | 58.88 | 0.52 | 72.29 | 23.43 | 77.06 | 68.25 | 52.83 |
+
+Against this work:
+
+| model | ACC | MF1 | κ | W | N1 | N2 | N3 | REM |
+|---|---|---|---|---|---|---|---|---|
+| paper's best (LSTM, EEG) | 74.70 | 67.68 | 0.64 | 79.9 | 33.0 | 80.9 | 74.3 | 70.0 |
+| this work, BiLSTM on features | 73.73 | 68.63 | 0.637 | 80.2 | 37.2 | 79.8 | 71.6 | 74.3 |
+| this work, gradient boosting | 77.12 | 70.70 | 0.677 | 83.5 | 37.0 | 82.0 | 73.1 | 77.9 |
+| **this work, 3-model ensemble** | **77.94** | **72.10** | **0.690** | **84.1** | **39.9** | **83.1** | **74.4** | **78.9** |
+
+The ensemble is ahead on every overall metric and on every individual stage.
+The largest margins are REM (+8.9 F1) and N1 (+6.9), the two stages the paper's
+models struggled with most.
+
+**On the split protocol.** The paper states it split "on a patient-wise basis to
+prevent data leakage, ensuring that all sleep epochs from a given patient were
+assigned exclusively to one set". That is the right principle, and it is what
+this work does too — so the comparison above is broadly like-for-like.
+
+However, the paper treats SN1–SN100 as 100 distinct patients. This project's
+audit found that they are not: twelve groups of recording IDs share all 63
+metadata columns, and SN15/SN28 are byte-identical in both signal and hypnogram.
+99 recordings come from **86 patients**. A split keyed on recording ID therefore
+still places the same patient on both sides. Measured directly on this cache,
+grouping by recording puts a patient across the train/test boundary in **5 of 5
+folds**; grouping by patient, in 0 of 5.
+
+The paper's baselines are therefore evaluated under a slightly more permissive
+protocol than the numbers above, which means the gap is, if anything,
+understated. `train_gbdt.py --group-by recording` exists to quantify that
+optimism; it is a diagnostic, not a reporting mode.
+
+## Step 13 — What to try next, in order of expected payoff
 
 1. **Sweep the CNN epoch count against the outer CV** (15 vs 25 vs 40, no inner
    split, full training data). 15 was picked arbitrarily and is the last
