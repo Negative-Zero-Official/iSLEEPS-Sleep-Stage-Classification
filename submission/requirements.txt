@@ -1,0 +1,15 @@
+# Feature extraction + gradient boosting (the whole classical pipeline)
+numpy>=1.24
+scipy>=1.10
+scikit-learn>=1.3
+
+# Optional: faster and slightly stronger than sklearn's HistGradientBoosting.
+# train_gbdt.py falls back to scikit-learn automatically if this is absent.
+lightgbm>=4.0
+
+# Optional: only needed for train_cnn.py.
+# NOTE: as of writing there is no torch wheel for Python 3.14. Your interpreter
+# is 3.14, so create a 3.12 virtualenv for the CNN:
+#   py -3.12 -m venv .venv-cnn
+#   .venv-cnn\Scripts\pip install torch --index-url https://download.pytorch.org/whl/cpu
+# torch>=2.2
